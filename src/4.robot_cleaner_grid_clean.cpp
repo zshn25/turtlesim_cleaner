@@ -1,0 +1,263 @@
+#include "ros/ros.h"
+#include "geometry_msgs/Twist.h"
+#include "turtlesim/Pose.h"
+#include <sstream>
+
+using namespace std;
+
+ros::Publisher velocity_publisher;
+ros::Subscriber pose_subscriber;	// to determine the position for turning the robot in an absolute orientation --> in the setDesiredOrientation fn
+turtlesim::Pose turtlesim_pose;
+
+const double x_min = 0.0;
+const double y_min = 0.0;
+const double x_max = 11.0;
+const double y_max = 11.0;
+
+const double PI = 3.14159265359;
+
+void move(double speed, double distance, bool isForward);
+void rotate(double angular_speed, double angle, bool cloclwise);	//this will rotate the turtle at specified angle from its current angle
+double degrees2radians(double angle_in_degrees);		
+double setDesiredOrientation(double desired_angle_radians);	//this will rotate the turtle at an absolute angle, whatever its current angle is
+void poseCallback(const turtlesim::Pose::ConstPtr & pose_message);	//Callback fn everytime the turtle pose msg is published over the /turtle1/pose topic.
+void moveGoal(turtlesim::Pose goal_pose, double distance_tolerance);	//this will move robot to goal
+double getDistance(double x1, double y1, double x2, double y2);
+void gridClean();
+
+int main(int argc, char **argv)
+{
+	// Initiate new ROS node named "talker"
+	ros::init(argc, argv, "turtlesim_cleaner");
+	ros::NodeHandle n;
+	double speed, angular_speed;
+	double distance, angle;
+	bool isForward, clockwise;
+
+	velocity_publisher = n.advertise<geometry_msgs::Twist>("/turtle1/cmd_vel", 1000);
+	pose_subscriber = n.subscribe("/turtle1/pose", 10, poseCallback);	//call poseCallback everytime the turtle pose msg is published over the /turtle1/pose topic.
+	ros::Rate loop_rate(0.5);
+
+	//	/turtle1/cmd_vel is the Topic name
+	//	/geometry_msgs::Twist is the msg type 
+	ROS_INFO("\n\n\n ********START TESTING*********\n");
+
+	/*********This is to move and rotate the robot as the user.**************
+	cout<<"enter speed: ";
+	cin>>speed;
+	cout<<"enter distance: ";
+	cin>>distance;
+	cout<<"forward?: ";
+	cin>>isForward;
+	move(speed, distance, isForward);
+						
+	cout<<"enter angular velocity: ";
+	cin>>angular_speed;
+	cout<<"enter angle: ";
+	cin>>angle;
+	cout<<"Clockwise?: ";
+	cin>>clockwise;
+	rotate(degrees2radians(angular_speed), degrees2radians(angle), clockwise);
+	*/
+
+	/**************This is to change the Absolute Orientation***************
+	setDesiredOrientation(degrees2radians(120));
+	ros::Rate loop_rate(0.5);
+	loop_rate.sleep();
+	setDesiredOrientation(degrees2radians(-60));
+	loop_rate.sleep();
+	setDesiredOrientation(degrees2radians(0));
+	*/
+
+
+	/****************This is to move the robot to a goal position*************
+	turtlesim::Pose goal_pose;
+	goal_pose.x = 1;
+	goal_pose.y = 1;
+	goal_pose.theta = 0;
+	moveGoal(goal_pose, 0.01);
+	loop_rate.sleep();	
+	*/
+
+	gridClean();
+
+	ros::spin();
+
+	return 0;
+}
+
+/**
+ *  makes the robot move with a certain linear velocity for a 
+ *  certain distance in a forward or backward straight direction. 
+ */
+void move(double speed, double distance, bool isForward)
+{
+	geometry_msgs::Twist vel_msg;
+	//set a random linear velocity in the x-axis
+	if (isForward)
+		vel_msg.linear.x =abs(speed);
+	else
+		vel_msg.linear.x =-abs(speed);
+	vel_msg.linear.y =0;
+	vel_msg.linear.z =0;
+	//set a random angular velocity in the y-axis
+	vel_msg.angular.x = 0;
+	vel_msg.angular.y = 0;
+	vel_msg.angular.z =0;
+
+	double t0 = ros::Time::now().toSec();
+	double current_distance = 0.0;
+	ros::Rate loop_rate(100);
+	do{
+		velocity_publisher.publish(vel_msg);
+		double t1 = ros::Time::now().toSec();
+		current_distance = speed * (t1-t0);
+		ros::spinOnce();
+		loop_rate.sleep();
+		//cout<<(t1-t0)<<", "<<current_distance <<", "<<distance<<endl;
+	}while(current_distance<distance);
+	vel_msg.linear.x =0;
+	velocity_publisher.publish(vel_msg);
+}
+
+/**
+ *  makes the robot turn with a certain angular velocity, for 
+ *  a certain distance in either clockwise or counter-clockwise direction  
+ */
+void rotate (double angular_speed, double relative_angle, bool clockwise)
+{
+	geometry_msgs::Twist vel_msg;
+	//set a random linear velocity in the x-axis
+	vel_msg.linear.x =0;
+	vel_msg.linear.y =0;
+	vel_msg.linear.z =0;
+	//set a random angular velocity in the y-axis
+	vel_msg.angular.x = 0;
+	vel_msg.angular.y = 0;
+	if (clockwise)
+		vel_msg.angular.z =-abs(angular_speed);
+	else
+	 	vel_msg.angular.z =abs(angular_speed);
+
+	double t0 = ros::Time::now().toSec();
+	double current_angle = 0.0;
+	ros::Rate loop_rate(1000);
+	do{
+		velocity_publisher.publish(vel_msg);
+		double t1 = ros::Time::now().toSec();
+		current_angle = angular_speed * (t1-t0);
+		ros::spinOnce();
+		loop_rate.sleep();
+		//cout<<(t1-t0)<<", "<<current_angle <<", "<<relative_angle<<endl;
+	}while(current_angle<relative_angle);
+	vel_msg.angular.z =0;
+	velocity_publisher.publish(vel_msg);
+}
+
+/**
+ *  converts angles from degree to radians  
+ */
+double degrees2radians(double angle_in_degrees)
+{
+	return angle_in_degrees *PI /180.0;
+}
+
+/**
+ *  turns the robot to a desried absolute angle  
+ */
+double setDesiredOrientation(double desired_angle_radians)
+{	
+	double relative_angle_radians = desired_angle_radians - turtlesim_pose.theta;
+	//if we want to turn at a perticular orientation, we subtract the current orientation from it
+	bool clockwise = ((relative_angle_radians<0)?true:false);
+	//cout<<desired_angle_radians <<","<<turtlesim_pose.theta<<","<<relative_angle_radians<<","<<clockwise<<endl;
+	rotate (abs(relative_angle_radians), abs(relative_angle_radians), clockwise);
+}
+
+/**
+ * A callback function to update the pose of the robot  
+ */
+void poseCallback(const turtlesim::Pose::ConstPtr & pose_message)
+{
+	turtlesim_pose.x=pose_message->x;
+	turtlesim_pose.y=pose_message->y;
+	turtlesim_pose.theta=pose_message->theta;
+}
+
+/*
+ * A proportional controller to make the robot moves towards a goal pose
+ */
+void moveGoal(turtlesim::Pose goal_pose, double distance_tolerance)
+{
+	//We implement a Proportional Controller. We need to go from (x,y) to (x',y'). Then, linear velocity v' = K ((x'-x)^2 + (y'-y)^2)^0.5 where K is the constant and ((x'-x)^2 + (y'-y)^2)^0.5 is the Euclidian distance. The steering angle theta = tan^-1(y'-y)/(x'-x) is the angle between these 2 points.
+	geometry_msgs::Twist vel_msg;
+
+	ros::Rate loop_rate(10);
+	do{
+		//linear velocity 
+		vel_msg.linear.x = 1.5*getDistance(turtlesim_pose.x, turtlesim_pose.y, goal_pose.x, goal_pose.y);
+		vel_msg.linear.y = 0;
+		vel_msg.linear.z = 0;
+		//angular velocity
+		vel_msg.angular.x = 0;
+		vel_msg.angular.y = 0;
+		vel_msg.angular.z = 4*(atan2(goal_pose.y - turtlesim_pose.y, goal_pose.x - turtlesim_pose.x)-turtlesim_pose.theta);
+
+		velocity_publisher.publish(vel_msg);
+
+		ros::spinOnce();
+		loop_rate.sleep();
+
+	}while(getDistance(turtlesim_pose.x, turtlesim_pose.y, goal_pose.x, goal_pose.y)>distance_tolerance);
+	cout<<"end move goal"<<endl;
+	vel_msg.linear.x = 0;
+	vel_msg.angular.z = 0;
+	velocity_publisher.publish(vel_msg);
+
+}
+
+/*
+ * get the euclidian distance between two points 
+ */
+double getDistance(double x1, double y1, double x2, double y2)
+{
+	return sqrt(pow((x2-x1),2) + pow((y2-y1),2));
+}
+
+/*
+ * the cleaning appication function. returns true when completed.
+ */
+void gridClean()
+{
+	ros::Rate loop(0.5);
+	turtlesim::Pose goal_pose;
+	goal_pose.x = 1;
+	goal_pose.y = 1;
+	goal_pose.theta = 0;
+	moveGoal(goal_pose, 0.01);
+	loop.sleep();
+	setDesiredOrientation(0);
+	loop.sleep();
+
+	move(2,9, true);
+	loop.sleep();
+	rotate(degrees2radians(10), degrees2radians(90), false);
+	loop.sleep();
+	move(2,9,true);
+
+	rotate(degrees2radians(10), degrees2radians(90), false);
+	loop.sleep();
+	move(2,1,true);
+	rotate(degrees2radians(10), degrees2radians(90), false);
+	loop.sleep();
+	move(2,9, true);
+
+	rotate(degrees2radians(30), degrees2radians(90), true);
+	loop.sleep();
+	move(2,1,true);
+	rotate(degrees2radians(30), degrees2radians(90), true);
+	loop.sleep();
+	move(2,9, true);
+
+	//double distance = getDistance(turtlesim_pose.x, turtlesim_pose.y, x_max
+}
