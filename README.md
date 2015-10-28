@@ -1,5 +1,7 @@
 # turtlesim_cleaner
-This is the code from youtube ROS Tutorial 4 Series
+This is the code from youtube ROS Tutorial 4 Series.
+
+This is not my own work. This is the code written by following the tutorial from
 
 https://www.youtube.com/playlist?list=PLSzYQGCXRW1HLWHdJ7ehZPA-nn7R9UKPa
 
