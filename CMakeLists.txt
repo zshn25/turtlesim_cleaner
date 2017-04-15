@@ -135,7 +135,7 @@ target_link_libraries(robot_cleaner_node ${catkin_LIBRARIES})
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(robot_cleaner_node beginner_tutorials_gencpp)
+add_dependencies(robot_cleaner_node beginner_tutorials_gen_cpp)
 #############
 ## Install ##
 #############
