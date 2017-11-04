@@ -108,6 +108,10 @@ CATKIN_DEPENDS roscpp rospy std_msgs geometry_msgs message_runtime
 #  DEPENDS system_lib
 )
 
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+)
+
 ###########
 ## Build ##
 ###########

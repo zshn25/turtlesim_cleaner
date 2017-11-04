@@ -47,5 +47,5 @@ To run the Demo:
 ```
 roscore                             //ROS Master
 rosrun turtlesim turtlesim_node     //turtlesim
-rosrun turtlseim_cleaner robot_cleaner_node
+rosrun turtlesim_cleaner robot_cleaner_node
 ```
